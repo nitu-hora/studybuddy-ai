@@ -1,0 +1,26 @@
+Set-Content .gitignore @"
+.env
+studybuddy_db/
+data/
+lectures/
+sandbox/
+__pycache__/
+*.pyc
+rag_step*.py
+rag_from_db_old.py
+eval_run.txt
+eval_results_*.csv
+src/ingest/probe_docx.py
+diagnose_attention.py
+peek_attention.py
+peek_db.py
+preview_skip.py
+list_models.py
+test_code.py
+try_expand.py
+try_queries.py
+where_is.py
+check_code_flag.py
+"@
+check_db.py
+debug_expand.py

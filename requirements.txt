@@ -1,0 +1,4 @@
+chromadb
+openai
+python-dotenv
+python-docx
