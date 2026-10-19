@@ -31,35 +31,38 @@ A normal chatbot doesn't know our lectures, so its answers use different terms a
 
 ## Architecture
 
+**Part 1. Build the knowledge base (run once)**
+
 ```mermaid
-flowchart LR
-    subgraph Offline["Offline: build the knowledge base"]
-        A[Lecture and assignment .docx files] --> B[Section-aware parser]
-        B --> C[Drop reading lists and pre-reads]
-        C --> D[Chunks of 800 chars or less, code kept whole]
-        D --> E[Embeddings: all-MiniLM-L6-v2]
-        E --> F[(ChromaDB: 3,332 chunks)]
-    end
-    subgraph Online["Online: answer a question"]
-        Q[Student question] --> SI{Simplify request?}
-        SI -- yes --> SM[Rewrite previous answer, 1 LLM call]
-        SI -- no --> FP{First question of the chat?}
-        FP -- yes --> S1[Search the plain question]
-        S1 -- close match --> G
-        S1 -- weak match --> R
-        FP -- no --> R[Rewrite: typos and follow-ups]
-        R --> S2[Search]
-        S2 --> G{Confidence gate}
-        G -- weak --> N[Not covered]
-        G -- confident --> M[3 expansion queries, one batched search]
-        M --> RRF[Reciprocal Rank Fusion]
-        RRF --> P[Prompt with numbered notes]
-        P --> L[LLM]
-        L --> CL[Clean and format]
-    end
-    F --> S1
-    F --> S2
-    F --> M
+flowchart TD
+    A[Lecture and assignment .docx files] --> B[Parse into sections]
+    B --> C[Drop reading lists and pre-reads]
+    C --> D[Split into chunks of 800 characters or less]
+    D --> E[Turn each chunk into a vector<br/>all-MiniLM-L6-v2]
+    E --> F[(ChromaDB<br/>3,332 chunks)]
+```
+
+**Part 2. Answer a question (every time a student asks)**
+
+```mermaid
+flowchart TD
+    Q[Student question] --> SI{Asking to simplify<br/>the last answer?}
+    SI -- yes --> SM[Rewrite the previous answer<br/>1 LLM call, no search]
+    SI -- no --> FP{First question<br/>of the chat?}
+    FP -- yes --> S1[Search ChromaDB with<br/>the question as typed]
+    FP -- no --> R[Rewrite the question<br/>fix typos, add context]
+    S1 -- close match --> G
+    S1 -- weak match --> R
+    R --> S2[Search ChromaDB]
+    S2 --> G{Close enough<br/>to the notes?}
+    G -- no --> N[Say: not covered]
+    G -- yes --> M[Write 3 related queries<br/>search all in one call]
+    M --> RRF[Merge results by rank]
+    RRF --> P[Build prompt with the top chunks]
+    P --> L[LLM writes the answer]
+    L --> CL[Clean and format]
+    CL --> OUT[Answer to the student]
+    SM --> OUT
 ```
 
 ### The pipeline in plain words
