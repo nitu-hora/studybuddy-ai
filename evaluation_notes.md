@@ -1,4 +1,11 @@
-# Evaluation notes (5 questions)
+# Evaluation notes
+
+Two evaluations, in order:
+
+1. **Part 1, 5-question evaluation** (`eval_five.py`): the first baseline. It found the weak spots and led to versions 2, 3 and 3.1.
+2. **Part 2, 20-question benchmark** (`eval_twenty.py`): the main result. It measures speed and quality before and after the fast path (version 4). **Jump to "Version 4: speed (20-question benchmark)" further down for the numbers.**
+
+# Part 1: 5-question evaluation
 
 Baseline run of the pipeline before any of the improvements listed below. The goal was to find out where the system is weak, so I know what to fix first.
 
@@ -93,6 +100,8 @@ Run on version 3.1: `eval_five.py` plus the 3-turn code test (self-attention, th
 - The line-by-line explanation said `embed_dim` is "the size of each input vector (and the output of each head)". `embed_dim` is the total size, and each head gets `embed_dim / num_heads`. A small error.
 - For "explain the code" the search still runs and finds 8 unrelated sections, although the answer comes from the previous answer. A router that skips the search would save a call.
 - Time per question was 12 s for the first question and about 25 s for the rest. Part of that is waiting for the free-tier token limit (8,000 per minute), not compute. Per-stage timing is the next measurement.
+
+# Part 2: 20-question benchmark
 
 ## Version 4: speed (20-question benchmark)
 
