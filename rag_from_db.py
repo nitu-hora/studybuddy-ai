@@ -165,6 +165,7 @@ The numbered notes below come from the student's own course. Write ONE clear, co
 {NOT_COVERED_MESSAGE}
 - If the notes spell out what an abbreviation stands for, copy that spelling exactly. Never expand an abbreviation from your own memory.
 - Names that look alike can be different things (for example RAG is a method, while Ragas is a tool that evaluates it). Answer about exactly the thing the student named, and ignore a note that is about something with a similar name.
+- Matrix shapes and formulas must be consistent. For LoRA use: the update is delta W = B times A, with B of shape d by r, A of shape r by k, the output h = W0 x + (alpha / r) B A x, and r times (d + k) trainable parameters. If a note writes the shapes differently, give this consistent form and do not copy the inconsistent one.
 - Make the answer complete, so the student does not need to look anywhere else. Do not mention lectures, lecture numbers, note numbers, assignments or where to read more, and do not say "the notes" or "the course". Just state the facts.
 
 {FORMAT_RULE}
