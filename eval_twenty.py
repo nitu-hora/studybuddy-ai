@@ -86,7 +86,7 @@ OFF_TOPIC = [
 ]
 
 # ---------------------------------------------------------------------------
-# Timing. We wrap four functions of rag_from_db.py so that every call adds its
+# Timing. We wrap four functions of src/rag/pipeline.py so that every call adds its
 # time to a stage total. Time spent waiting for the free tier (429 retries)
 # is inside the LLM calls, so it is counted too.
 # ---------------------------------------------------------------------------
@@ -211,7 +211,7 @@ def print_summary(rows):
 
 
 def run_all(label):
-    import rag_from_db as rag
+    from src.rag import pipeline as rag
 
     rag.rewrite_question = timed("rewrite", rag.rewrite_question, True)
     rag.expand_query = timed("expand", rag.expand_query, True)

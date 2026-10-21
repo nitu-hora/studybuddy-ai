@@ -83,7 +83,7 @@ if not st.session_state.get("authed"):
 # ---- Load the pipeline once per server (not once per click) ----
 @st.cache_resource(show_spinner="Starting up: loading the notes. The first start takes about a minute...")
 def load_pipeline():
-    import rag_from_db as rag                       # downloads the database first if DB_REPO is set
+    from src.rag import pipeline as rag                       # downloads the database first if DB_REPO is set
 
     size = rag.collection.count()
     # A saved answer belongs to one version of the notes AND one version of the code. If either

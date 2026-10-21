@@ -125,7 +125,7 @@ After adding Lectures 16 to 18, a test of 10 new questions gave 5 right, 2 partl
 ### 12. Free-tier limits: fallback model and cache
 Some answers took 20 seconds or more. The cause was Groq's per-minute token limit, not the code. A question uses about 2,900 tokens and 2 to 3 calls, so one model allows roughly 2 to 3 questions a minute and about 70 a day. Two fixes: if the main model is rate limited, the call retries on a second model (`openai/gpt-oss-120b`, which has its own limit), and the first question of a chat is cached, so a repeated question costs no tokens. 
 
-**How the cache works.** Only the first question of a chat is cached, because follow-ups depend on the chat. The key is the question in lowercase with extra spaces and trailing `? . !` removed. The file `answer_cache.json` stores the chunk count and a hash of `rag_from_db.py` (`code_version`). If either changed, the file is ignored, so a code fix never serves an old answer. Refusals, empty answers, cut-off answers and errors are never cached. On the free host the disk is temporary, so the cache starts empty after a restart. A production version would use Redis with a time limit and maybe a semantic cache.
+**How the cache works.** Only the first question of a chat is cached, because follow-ups depend on the chat. The key is the question in lowercase with extra spaces and trailing `? . !` removed. The file `answer_cache.json` stores the chunk count and a hash of `src/rag/pipeline.py` (`code_version`). If either changed, the file is ignored, so a code fix never serves an old answer. Refusals, empty answers, cut-off answers and errors are never cached. On the free host the disk is temporary, so the cache starts empty after a restart. A production version would use Redis with a time limit and maybe a semantic cache.
 
 ### 13. Hosting for students: free and online
 The first plan was my laptop plus a share link, which only works while the laptop is on. Hugging Face Spaces was next, but Gradio Spaces showed as paid, so I moved to **Streamlit Community Cloud**. It runs `streamlit_app.py` from this GitHub repo and redeploys on every push. The lecture database is private, so it lives in a private Hugging Face dataset and the app downloads it at start (and again when the dataset version changes). The Groq key, the student password and the dataset token are in the app's Secrets, never in the code. The app sleeps after 12 hours without visitors; the first visit wakes it in about a minute.
@@ -187,9 +187,27 @@ Quiz mode, Telegram bot, larger pilot, re-ranker or relevance cutoff, chunk over
 
 ---
 
+## Files in this project
+
+| File | What it is |
+|---|---|
+| `streamlit_app.py` | The student chat page (password, one question at a time, cache) |
+| `src/rag/pipeline.py` | The whole answer pipeline, plus a terminal chat for testing |
+| `src/config.py` | Paths, collection name, and the private database download |
+| `src/ingest/parse_docs.py` | Reads .docx notes into sections and chunks |
+| `src/ingest/build_index.py` | Adds new or changed lectures to the database |
+| `list_lectures.py` | Shows how many chunks each lecture has |
+| `run_check.py` | 10-question check with automatic key-word tests |
+| `eval_twenty.py`, `eval_five.py` | Benchmarks (time, calls, refusals) and compare mode |
+| `eval_results_*.csv` | Saved results behind the Evaluation table (private, not on GitHub) |
+| `debug_new.py`, `diagnose_attention.py`, `q1_check.py`, `count_tokens.py` | Small diagnosis tools: search text and distances, rank of a topic, repeat one question, tokens per question |
+| `evaluation_notes.md`, `ROADMAP.md` | Measured findings and plans |
+
+Private and not on GitHub: `lectures/`, `studybuddy_db/`, `.env`, `answer_cache.json`.
+
 ## Tech stack
 
-Python, ChromaDB, sentence-transformers `all-MiniLM-L6-v2` (Chroma's default embedding), Groq (`openai/gpt-oss-20b`, with `openai/gpt-oss-120b` as fallback) through the `openai` client, Streamlit (hosted page; the older Gradio `app.py` is kept for local tests), huggingface_hub (private database download), python-docx, python-dotenv.
+Python, ChromaDB, sentence-transformers `all-MiniLM-L6-v2` (Chroma's default embedding), Groq (`openai/gpt-oss-20b`, with `openai/gpt-oss-120b` as fallback) through the `openai` client, Streamlit (the hosted chat page), huggingface_hub (private database download), python-docx, python-dotenv.
 
 ## Use it
 
@@ -201,7 +219,7 @@ Python, ChromaDB, sentence-transformers `all-MiniLM-L6-v2` (Chroma's default emb
 2. Get a free key at [console.groq.com](https://console.groq.com). Copy `.env.example` to `.env` and paste the key after `GROQ_API_KEY=`.
 3. Put your own lecture .docx files in the `lectures/` folder.
 4. Build the knowledge base once: `python -m src.ingest.build_index`
-5. Start the chat in the terminal: `python rag_from_db.py`
+5. Start the chat in the terminal: `python -m src.rag.pipeline`
 6. Or start the web page: add `STUDY_PASSWORD=choose-a-password` to `.env`, then run `streamlit run streamlit_app.py`.
 
 **To host your own copy:** push your code to GitHub, upload your database to a private Hugging Face dataset, create an app on Streamlit Community Cloud pointing to `streamlit_app.py`, and put these in the app's Secrets:

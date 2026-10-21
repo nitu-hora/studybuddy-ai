@@ -2,7 +2,7 @@ import sys
 import time
 sys.stdout.reconfigure(encoding="utf-8")
 
-from rag_from_db import answer_question, HISTORY_TURNS
+from src.rag.pipeline import answer_question, HISTORY_TURNS
 
 CASES = [
     ["What is temperature in an LLM?"],
