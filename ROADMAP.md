@@ -14,9 +14,11 @@ A study assistant that answers only from my own lecture notes and says "not cove
 | 4c | Question rewriting for typos and follow-ups | Done |
 | 5 | Evaluation (5-question and 20-question runs) | Done |
 | 5b | Speed: simplify route, fast path, batched search | Done (5.6 s to 3.2 s) |
-| 6 | Push to GitHub with README | Next |
-| 7 | Chat page for a few students (Gradio) | Next |
-| 8 | LinkedIn post | After a few students have used it |
+| 6 | Push to GitHub with README | Done |
+| 7 | Chat page for a few students (Gradio, then Streamlit) | Done |
+| 8 | Free online hosting (Streamlit Community Cloud, private database on Hugging Face) | Done |
+| 9 | Answer cache tied to code version, acronym and topic fixes | Done |
+| 10 | Pilot with students and collect wrong answers | Next |
 
 ## Results so far
 
@@ -25,18 +27,23 @@ On 20 questions, average time per answer fell from 5.6 s to 3.2 s and LLM calls 
 ## Next
 
 - [ ] Hand-score `manual_correct` in the results CSV and put the number in the README
-- [ ] First clean push: no key, no database, no lecture files
-- [x] `app.py`: Gradio chat page with a password, one request at a time, shareable link from my laptop
+- [x] First clean push: no key, no database, no lecture files
+- [x] `streamlit_app.py`: chat page with a password, one question at a time, hosted free online
+- [ ] Retest on the hosted app: what is rag, give me an example with code, what is lora
+- [ ] Run `python run_check.py low` and read every answer
+- [ ] Check LoRA matrix shapes against Lecture 17
 - [ ] Test with 5 students, about 10 questions each
 - [x] Assignment guides: kept in, solutions included, because they are old assignments only. Never index a current assignment
-- [ ] Short feedback form and screenshot or recording for the LinkedIn post
+- [ ] Short feedback form; keep the wrong answers as new test questions
 
 ## Future work (cut on purpose, with reasons)
 
 | Idea | Why it is not now |
 |---|---|
 | Quiz mode (lecture quizzes and AI-made ones) | A separate feature. The retrieval and answer quality come first |
-| Telegram bot / 24/7 hosting | Needs hosting and keys. A laptop-hosted page is enough for 5 students |
+| Telegram bot | Needs a bot host and keys. The web page is enough for 10 students |
+| Always-on hosting, Redis cache, semantic cache | Free hosting sleeps after 12 hours idle and its disk is temporary. Fine for a pilot. Needed only for many users |
+| Cloud Run or a paid host | Needs a billing card. Consider if the free host is too limited |
 | Large pilot (400-500 students) | The free tier allows about 8,000 tokens per minute |
 | Re-ranker or relevance cutoff | Would fix invented examples and noisy chunks. Do it if the hand-scored check shows retrieval is the main problem |
 | Chunk overlap, hybrid search | Not shown to be the biggest problem yet |
@@ -54,6 +61,8 @@ On 20 questions, average time per answer fell from 5.6 s to 3.2 s and LLM calls 
 | Simplify answers not always much simpler | 4 of 5 at least 20% shorter | Tighter simplify prompt |
 | Assignment guides with full solutions are searchable | Assignment details appear in general answers | Intended: old assignments only. Hint-only mode if a current one is ever added |
 | Fixed 8 chunks | Noise on narrow questions | Relevance cutoff |
+| Look-alike names (RAG vs Ragas) | A short "what is rag" answer described Ragas | Prompt rule and acronym list added; keep testing |
+| Free host limits | Sleeps after 12 hours idle; cache resets on restart | Fine for a pilot; Redis or a paid host later |
 
 ## Scope
 
@@ -70,7 +79,8 @@ The goal is a project I can explain end to end, with measured results, that a fe
 | Confidence gate before the answer call | Let the model refuse | Free for off-topic questions; fewer made-up answers |
 | Fast path and simplify route | Always rewrite and expand | Measured: 5.6 s to 3.2 s with the same quality screens |
 | Keep assignment guides, solutions included | Remove them, or filter for students | They are old assignments, and students want the answers |
-| Laptop-hosted Gradio page | Hosted bot | Free, quick, enough for 5 students |
+| Streamlit Community Cloud, private HF dataset for the database | Laptop + share link, Hugging Face Spaces (Gradio now paid), Cloud Run (needs card) | Free, works when my laptop is off, redeploys on git push |
+| Answer cache keyed to question + code hash + index size | No cache, or a cache cleared by hand | An old wrong answer once kept coming back after a fix |
 
 ## What I learned
 

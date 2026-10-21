@@ -12,12 +12,27 @@ COLLECTION_NAME = "course_notes"
 
 
 def ensure_db():
-    """On a server (a Hugging Face Space) the database is not on the disk yet.
-    If DB_REPO is set, download it once from a private dataset. On my laptop DB_REPO is not set, so nothing happens."""
+    """On a server (a Hugging Face / Streamlit host) the database is not on the disk yet.
+    If DB_REPO is set, download it from a private dataset: the first time, and again whenever the dataset
+    has a newer version (for example after a new lecture). On my laptop DB_REPO is not set, so nothing happens."""
     repo = os.environ.get("DB_REPO")
-    if repo and not os.path.exists(os.path.join(DB_PATH, "chroma.sqlite3")):
-        from huggingface_hub import snapshot_download
-        snapshot_download(repo_id=repo, repo_type="dataset", token=os.environ.get("DB_READ_TOKEN"), local_dir=DB_PATH)
+    if not repo:
+        return
+    import shutil
+    from huggingface_hub import HfApi, snapshot_download
+
+    token = os.environ.get("DB_READ_TOKEN")
+    latest = HfApi().dataset_info(repo, token=token).sha        # id of the newest version of the dataset
+    marker = os.path.join(DB_PATH, ".db_revision")
+    have = ""
+    if os.path.exists(marker) and os.path.exists(os.path.join(DB_PATH, "chroma.sqlite3")):
+        with open(marker, encoding="utf-8") as f:
+            have = f.read().strip()
+    if have != latest:
+        shutil.rmtree(DB_PATH, ignore_errors=True)              # start clean, so no old pieces are left behind
+        snapshot_download(repo_id=repo, repo_type="dataset", token=token, local_dir=DB_PATH)
+        with open(marker, "w", encoding="utf-8") as f:
+            f.write(latest)
 
 
 ensure_db()

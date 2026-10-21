@@ -2,7 +2,7 @@
 
 **A study assistant that answers questions from my own lecture notes, code, tables and assignment guides, and says "not covered" when the notes don't contain the answer.**
 
-Built as a RAG (Retrieval-Augmented Generation) pipeline over the lecture material of the IIT Kharagpur Gen AI and Agentic AI course. Free tools only. Pilot scale: it runs on my laptop for a small group of students.
+Built as a RAG (Retrieval-Augmented Generation) pipeline over the lecture material of the IIT Kharagpur Gen AI and Agentic AI course. Free tools only. Pilot scale: it is hosted free on Streamlit Community Cloud for a small group of students, so it works even when my laptop is off.
 
 > Planned work and decisions: [ROADMAP.md](ROADMAP.md). Measured results and findings: [evaluation_notes.md](evaluation_notes.md).
 
@@ -24,7 +24,12 @@ A normal chatbot doesn't know our lectures, so its answers use different terms a
 | "Explain more simply" / "give an analogy" in one fast LLM call | Working |
 | "Explain the code line by line" using the previous answer | Working |
 | Refuse off-topic questions instead of making up an answer | Working (20 of 20 in my test) |
-| Chat page for a few students (Gradio, password, one at a time): `app.py` | Built, testing with students |
+| Online chat page for a few students (Streamlit, password, one question at a time): `streamlit_app.py` | Live, testing with students |
+| Short abbreviation questions ("what is lora", "what is rag") searched with the full name | Working |
+| Short requests like "give me an example with code" keep the previous topic | Working |
+| Fallback to a second model when the free-tier limit is hit | Working |
+| Answer cache for repeated first questions (clears itself when the code or index changes) | Working |
+| Lectures 1 to 18 and the Assignment 3 starter notebook indexed | Done (4,170 chunks) |
 | Quiz mode, Telegram bot, larger pilot | Future work |
 
 ---
@@ -39,7 +44,7 @@ flowchart TD
     B --> C[Drop reading lists and pre-reads]
     C --> D[Split into chunks of 800 characters or less]
     D --> E[Turn each chunk into a vector<br/>all-MiniLM-L6-v2]
-    E --> F[(ChromaDB<br/>3,332 chunks)]
+    E --> F[(ChromaDB<br/>4,170 chunks)]
 ```
 
 **Part 2. Answer a question (every time a student asks)**
@@ -70,8 +75,9 @@ flowchart TD
 1. **Index once.** Each lecture file is parsed into sections, split into chunks, converted to vectors and stored in ChromaDB.
 2. **Route.** A short follow-up like "explain simpler" skips search and rewrites the previous answer. Other questions continue.
 3. **Fast path.** For the first question of a chat, search the question as typed. If the best match is close (distance below 0.75), the rewrite call is skipped.
-4. **Rewrite.** Otherwise a short LLM call (temperature 0) fixes typos and turns follow-ups into full questions using the chat history.
-5. **Gate.** If the closest chunk is too far (distance 1.0 or more), the system says "not covered" without calling the LLM for an answer.
+4. **Rewrite.** Otherwise a short LLM call (temperature 0) fixes typos and turns follow-ups into full questions using the chat history. If the user only asks for "an example" or "the code", the last real topic is added back so the search stays on topic.
+   Abbreviations such as RAG, LoRA, QLoRA, DPO, RLHF, PEFT and SFT are spelled out for the search only (the student's wording is not changed).
+5. **Gate.** If the closest chunk is too far (distance 1.10 or more), the system says "not covered" without calling the LLM for an answer.
 6. **Expand and merge.** The LLM writes 3 queries naming sub-concepts. One batched search runs all three, and results are merged by rank.
 7. **Answer.** The top chunks go to the LLM, which writes one combined explanation in simple words. Code is cleaned and formatted for plain text.
 
@@ -113,6 +119,25 @@ My first evaluation showed the model inventing examples, and two had wrong numbe
 ### 10. Speed: fewer calls, measured
 After the first benchmark I found each question cost 3 LLM calls and search took longer than I guessed. I added the simplify route, the fast path and one batched search, and measured again on the same 20 questions (table below). Average time fell from 5.6 s to 3.2 s with the same quality screens.
 
+### 11. Grounding: say "not covered" instead of guessing
+After adding Lectures 16 to 18, a test of 10 new questions gave 5 right, 2 partly right and 3 wrong. Two wrong answers were guesses: an abbreviation the notes spell out was expanded wrongly, and a question the notes do not cover got an invented answer. Distance alone cannot separate a valid question from an invalid one (a valid question sat at 1.007 and an invalid one at 0.935), so refusal has two layers: the distance gate, and a prompt rule that tells the model to check the notes first and reply "not covered" if the answer is not there. Temperature is 0 so the same question gives the same answer. I also tested `reasoning_effort` medium against low: medium was slower and refused one valid question, so I kept low. After the fixes, 9 of 10 passed my automatic check (hand-scoring still to do).
+
+### 12. Free-tier limits: fallback model and cache
+Some answers took 20 seconds or more. The cause was Groq's per-minute token limit, not the code. A question uses about 2,900 tokens and 2 to 3 calls, so one model allows roughly 2 to 3 questions a minute and about 70 a day. Two fixes: if the main model is rate limited, the call retries on a second model (`openai/gpt-oss-120b`, which has its own limit), and the first question of a chat is cached, so a repeated question costs no tokens. 
+
+**How the cache works.** Only the first question of a chat is cached, because follow-ups depend on the chat. The key is the question in lowercase with extra spaces and trailing `? . !` removed. The file `answer_cache.json` stores the chunk count and a hash of `rag_from_db.py` (`code_version`). If either changed, the file is ignored, so a code fix never serves an old answer. Refusals, empty answers, cut-off answers and errors are never cached. On the free host the disk is temporary, so the cache starts empty after a restart. A production version would use Redis with a time limit and maybe a semantic cache.
+
+### 13. Hosting for students: free and online
+The first plan was my laptop plus a share link, which only works while the laptop is on. Hugging Face Spaces was next, but Gradio Spaces showed as paid, so I moved to **Streamlit Community Cloud**. It runs `streamlit_app.py` from this GitHub repo and redeploys on every push. The lecture database is private, so it lives in a private Hugging Face dataset and the app downloads it at start (and again when the dataset version changes). The Groq key, the student password and the dataset token are in the app's Secrets, never in the code. The app sleeps after 12 hours without visitors; the first visit wakes it in about a minute.
+
+```mermaid
+flowchart LR
+    ST[Student] --> APP[Streamlit Community Cloud<br/>streamlit_app.py]
+    GH[GitHub repo<br/>code only] -- auto deploy --> APP
+    HF[(Private HF dataset<br/>ChromaDB)] -- download at start --> APP
+    APP --> GQ[Groq API<br/>gpt-oss-20b / 120b]
+```
+
 ---
 
 ## Evaluation
@@ -147,11 +172,14 @@ After the first benchmark I found each question cost 3 LLM calls and search took
 - **Assignment guides are in the knowledge base, including their full solutions.** I only index assignments from past terms, so students can see answers to old assignments on purpose. A current assignment should never be indexed.
 - **Fixed 8 chunks** add noise when only a few are relevant.
 - **Small test:** 20 questions, one laptop, one run each. It is a pilot-scale result, not a production claim.
-- **Free tier:** about 8,000 tokens per minute on this model, so a few students at a time, not a whole cohort.
+- **Free tier:** about 8,000 tokens per minute and about 70 questions a day per model, so a few students at a time, not a whole cohort. The fallback model and the cache help but do not remove the limit.
+- **Free hosting:** about 2.7 GB memory, sleeps after 12 hours idle, temporary disk (the cache resets on restart). Fine for 10 students.
+- **Look-alike names:** RAG and Ragas, or similar terms, can still be mixed up. A prompt rule and the acronym list reduce it but do not remove it.
+- **New lectures were tested on only 10 questions,** and 9 of 10 passed an automatic check. I have not hand-scored them yet.
 
 ## Design: the notes stay private
 
-The repository holds only code. The lecture files and the vector database are excluded with `.gitignore`. The answer pipeline is one function (`answer_question`) separate from the chat loop, so a web page or bot can call it without changing the pipeline. Students see answers, not chunks. An answer is built from the notes, so some content always shows through; the limits on session length and queue slow down bulk copying but can't make the notes invisible.
+The repository holds only code. The lecture files and the vector database are excluded with `.gitignore`. The answer pipeline is one function (`answer_question`) separate from the chat loop, so a web page or bot can call it without changing the pipeline (the Gradio page and the Streamlit page both do). Students see answers, not chunks. An answer is built from the notes, so some content always shows through; the limits on session length and queue slow down bulk copying but can't make the notes invisible.
 
 ## Future work
 
@@ -161,11 +189,11 @@ Quiz mode, Telegram bot, larger pilot, re-ranker or relevance cutoff, chunk over
 
 ## Tech stack
 
-Python, ChromaDB, sentence-transformers `all-MiniLM-L6-v2` (Chroma's default embedding), Groq (`openai/gpt-oss-20b`) through the `openai` client, python-docx, python-dotenv.
+Python, ChromaDB, sentence-transformers `all-MiniLM-L6-v2` (Chroma's default embedding), Groq (`openai/gpt-oss-20b`, with `openai/gpt-oss-120b` as fallback) through the `openai` client, Streamlit (hosted page; the older Gradio `app.py` is kept for local tests), huggingface_hub (private database download), python-docx, python-dotenv.
 
 ## Use it
 
-**If you are in my cohort:** you don't install anything. All the cohort's lecture notes and assignment guides are already loaded on my side. I run `app.py` on my laptop and share a link. You open it, enter the password and ask. The link works only while my laptop is on. The notes stay with me and are not in this repo.
+**If you are in my cohort:** you don't install anything. All the cohort's lecture notes and assignment guides are already loaded on my side. I host the page online; you open the link, enter the password and ask. It works even when my laptop is off. The notes stay in a private dataset and are not in this repo.
 
 **If you are outside my cohort (or want to build on this code):** you can run your own copy over your own notes. The course notes and the built database are private and not in this repo, so you bring your own .docx notes.
 
@@ -174,6 +202,15 @@ Python, ChromaDB, sentence-transformers `all-MiniLM-L6-v2` (Chroma's default emb
 3. Put your own lecture .docx files in the `lectures/` folder.
 4. Build the knowledge base once: `python -m src.ingest.build_index`
 5. Start the chat in the terminal: `python rag_from_db.py`
-6. Or start the web page: add `STUDY_PASSWORD=choose-a-password` to `.env`, then run `python app.py`. It prints a link to share.
+6. Or start the web page: add `STUDY_PASSWORD=choose-a-password` to `.env`, then run `streamlit run streamlit_app.py`.
+
+**To host your own copy:** push your code to GitHub, upload your database to a private Hugging Face dataset, create an app on Streamlit Community Cloud pointing to `streamlit_app.py`, and put these in the app's Secrets:
+
+```toml
+GROQ_API_KEY = "..."
+STUDY_PASSWORD = "..."
+DB_REPO = "your-user/your-private-dataset"
+DB_READ_TOKEN = "hf_..."
+```
 
 Run the benchmark with `python eval_twenty.py baseline`, or compare two runs with `python eval_twenty.py compare baseline fastpath`. The question list inside the script uses my course's topics; replace it with questions about your own notes.
