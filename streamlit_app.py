@@ -39,14 +39,14 @@ st.markdown(
     """
 <style>
 #hero { text-align: center; padding: 6px 0 4px; }
-#hero h1 { margin: 0; color: #2B6FA8; font-size: 2.1rem; }
-#hero h1 span { background: #FFD54A; color: #1F3556; padding: 0 .35em; border-radius: .4em; }
+#hero .title { margin: 0; color: #2B6FA8; font-size: 2.1rem; font-weight: 700; }
+#hero .title .hl { background: #FFD54A; color: #1F3556; padding: 0 .35em; border-radius: .4em; }
 #hero p { margin: 6px auto 0; max-width: 640px; opacity: .85; }
 .chip { display: inline-block; margin: 4px 3px; padding: 3px 11px; border-radius: 999px;
         background: #EDE7FA; font-size: .85rem; }
 </style>
 <div id="hero">
-  <h1>Study<span>Buddy</span> AI</h1>
+  <div class="title">Study<span class="hl">Buddy</span> AI</div>
   <p>Ask about the Gen AI and Agentic AI lectures and get an answer in simple words.</p>
   <div>
     <span class="chip">Try: what is self-attention?</span>
