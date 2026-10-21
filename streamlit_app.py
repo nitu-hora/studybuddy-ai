@@ -8,6 +8,7 @@ Online only (the notes database is private and is downloaded when the app starts
     DB_REPO           for example  my-hf-name/studybuddy-db
     DB_READ_TOKEN     a read-only Hugging Face token
 """
+import hashlib
 import hmac
 import json
 import os
@@ -33,6 +34,8 @@ HISTORY_TURNS = 2          # the pipeline sees the last 2 turns, like the termin
 MAX_QUESTION_CHARS = 500   # keeps one question from using up the free token limit
 CACHE_FILE = "answer_cache.json"
 BUSY_MESSAGE = "Busy right now: the free daily limit may be used up. Please try again in a few minutes."
+ERROR_START = "Something went wrong on my side"
+LIMIT_ERRORS = {"RateLimitError", "InternalServerError", "APIConnectionError", "APITimeoutError"}
 EXAMPLES = ["What is temperature in an LLM?", "How does retrieval augmented generation work?"]
 
 st.markdown(
@@ -83,11 +86,15 @@ def load_pipeline():
     import rag_from_db as rag                       # downloads the database first if DB_REPO is set
 
     size = rag.collection.count()
-    cache = {"index_size": size, "answers": {}}
-    try:                                            # the cache belongs to one version of the notes
+    # A saved answer belongs to one version of the notes AND one version of the code. If either
+    # changes (new lectures, a prompt fix), the cache starts empty, so old wrong answers disappear.
+    with open(rag.__file__, "rb") as f:
+        code_version = hashlib.md5(f.read()).hexdigest()[:10]
+    cache = {"index_size": size, "code_version": code_version, "answers": {}}
+    try:
         with open(CACHE_FILE, encoding="utf-8") as f:
             saved = json.load(f)
-        if saved.get("index_size") == size:
+        if saved.get("index_size") == size and saved.get("code_version") == code_version:
             cache = saved
     except Exception:
         pass
@@ -122,7 +129,7 @@ def to_pipeline_history(messages):
         elif pending_question is not None:
             pairs.append((pending_question, m["content"]))
             pending_question = None
-    pairs = [(q, a) for q, a in pairs if a not in (rag.NOT_COVERED_MESSAGE, BUSY_MESSAGE)]
+    pairs = [(q, a) for q, a in pairs if a not in (rag.NOT_COVERED_MESSAGE, BUSY_MESSAGE) and not a.startswith(ERROR_START)]
     return pairs[-HISTORY_TURNS:]
 
 
@@ -154,9 +161,13 @@ def generate_answer(question, history, box):
                 save_to_cache(key, final)
             return final, True
         except Exception as e:
-            print("answer_question failed:", repr(e))      # shows in the server log, not to the student
-            box.markdown(BUSY_MESSAGE)
-            return BUSY_MESSAGE, False
+            print("answer_question failed:", repr(e))      # shows in the server log
+            if type(e).__name__ in LIMIT_ERRORS:
+                message = BUSY_MESSAGE                     # the free limit, or Groq is busy
+            else:
+                message = f"{ERROR_START} ({type(e).__name__}). Please try again, and tell Nitu if it keeps happening."
+            box.markdown(message)
+            return message, False
 
 
 # ---- The chat page ----
