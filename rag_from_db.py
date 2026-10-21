@@ -4,6 +4,7 @@ try:
 except Exception:
     pass                                        # some servers use a stdout that cannot be reconfigured
 
+import difflib
 import os
 import re
 import time
@@ -355,6 +356,47 @@ def type_out(text, delay=0.003):
     print()
 
 
+# ---- Short requests that have no topic of their own ("write a small code with explanation") ----
+# The rewrite step sometimes leaves them unchanged, and then the search finds some unrelated code.
+# This check is plain code, not an LLM call, so it never fails: it adds the last real topic.
+REQUEST_WORDS = {
+    "write", "show", "give", "me", "a", "an", "the", "some", "small", "short", "simple", "tiny", "quick",
+    "minimal", "basic", "code", "example", "examples", "explanation", "explain", "with", "and", "also",
+    "please", "can", "you", "u", "could", "it", "this", "that", "more", "detail", "details", "in", "python",
+    "pytorch", "snippet", "implementation", "implement", "for", "of", "line", "by", "to", "how", "why", "is",
+    "calculated", "work", "works", "do", "does", "what", "about", "tell", "using", "step", "full", "complete",
+}
+
+
+def is_topicless_request(question):
+    words = re.findall(r"[a-z']+", question.lower())
+    if not words or len(words) > 8:
+        return False
+    for w in words:
+        if w in REQUEST_WORDS or difflib.get_close_matches(w, REQUEST_WORDS, n=1, cutoff=0.8):
+            continue                                # also accepts small typos like "expalantion"
+        return False
+    return True
+
+
+def previous_topic(history):
+    """The topic of the most recent earlier question that had a topic of its own."""
+    for earlier_question, _ in reversed(history or []):
+        if not is_topicless_request(earlier_question):
+            topic = re.sub(r"^\s*(what|how|why|who|when|which)\s+(is|are|does|do|was|were)\s+(a|an|the)?\s*",
+                           "", earlier_question, flags=re.I)
+            return topic.strip(" ?.!")
+    return ""
+
+
+def attach_previous_topic(question, standalone, history):
+    if history and is_topicless_request(question):
+        topic = previous_topic(history)
+        if topic and topic.lower() not in standalone.lower():
+            return f"{standalone.rstrip(' ?.!')} about {topic}"
+    return standalone
+
+
 def rewrite_question(question, history):
     if history:
         convo = "\n".join(f"Student: {q}\nAnswer (shortened): {a[:300]}" for q, a in history)
@@ -432,6 +474,7 @@ def answer_question(question, history=None, stream=False):
         rewrite_skipped = True
     else:
         standalone = rewrite_question(question, history)
+        standalone = attach_previous_topic(question, standalone, history)
         first = retrieve(standalone, top_k=SEARCH_K)
         rewrite_skipped = False
 
