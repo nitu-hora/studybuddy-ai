@@ -34,15 +34,16 @@ MODELS = ["openai/gpt-oss-20b", "openai/gpt-oss-120b"]
 def chat_create(**kwargs):
     """Like llm_client.chat.completions.create, but tries the next model when one is rate limited."""
     last_error = None
-    for attempt in range(2):
+    for attempt in range(3):
         for model in MODELS:
             try:
                 return llm_client.chat.completions.create(model=model, **kwargs)
             except (RateLimitError, InternalServerError, APIConnectionError) as e:
                 last_error = e
                 print(f"[limit] {model} failed ({type(e).__name__}), trying the next model")
-        if attempt == 0:
-            time.sleep(8)   # every model is busy: wait a moment, then try the whole list once more
+        if attempt < 2:
+            # Every model is busy. The free limit is per minute, so wait 10 s, then 20 s, and try the list again.
+            time.sleep(10 if attempt == 0 else 20)
     raise last_error
 TOP_K = 5
 CONFIDENCE_THRESHOLD = 1.10
