@@ -164,6 +164,7 @@ The numbered notes below come from the student's own course. Write ONE clear, co
 - Check first: do the notes below really contain what the student asked? If the question names a specific model, number, person, dataset or fact (for example 'what rank did OpenAI use for GPT-4') and that exact thing does not appear in the notes, do not answer from general knowledge and do not borrow a number that belongs to something else. Reply with only these two lines, word for word:
 {NOT_COVERED_MESSAGE}
 - If the notes spell out what an abbreviation stands for, copy that spelling exactly. Never expand an abbreviation from your own memory.
+- Names that look alike can be different things (for example RAG is a method, while Ragas is a tool that evaluates it). Answer about exactly the thing the student named, and ignore a note that is about something with a similar name.
 - Make the answer complete, so the student does not need to look anywhere else. Do not mention lectures, lecture numbers, note numbers, assignments or where to read more, and do not say "the notes" or "the course". Just state the facts.
 
 {FORMAT_RULE}
@@ -301,7 +302,8 @@ def retrieve_multi(question, first_results, per_query=8, final_k=8):
     return [found[cid] for cid in ranked[:final_k]]
 
 
-def clean_answer(text):
+def clean_answer(text, fences=False):
+    # fences=True keeps code in ``` blocks (for the web page). False indents it (for the terminal).
     # The model sometimes uses special hyphens and spaces that look odd in a terminal.
     text = text.replace("\u2011", "-").replace("\u00a0", " ").replace("\u202f", " ")
     out = []
@@ -309,9 +311,11 @@ def clean_answer(text):
     for line in text.split("\n"):
         if line.strip().startswith("```"):
             in_fence = not in_fence
+            if fences:
+                out.append("```")
             continue
         if in_fence:
-            out.append("    " + line)
+            out.append(line if fences else "    " + line)
             continue
         if line.startswith("    "):
             out.append(line)
@@ -326,6 +330,9 @@ def clean_answer(text):
         line = re.sub(r"\s*\bfrom the (lecture )?notes\b", "", line)
         line = re.sub(r"(^|[.!?]\s+)In the (lecture )?notes,?\s*", r"\1In practice, ", line)
         line = re.sub(r"\bin the (lecture )?notes\b", "here", line, flags=re.I)
+        line = re.sub(r"\bThe (lecture )?notes (describe|show|give|contain)s?\b", "Here is", line)
+        line = re.sub(r"\s*\((?:[^()]*(?:Notebook|Lecture|Assignment|IIT)[^()]*)\)", "", line)   # (StarterNotebook_Assignment-3)
+        line = re.sub(r"\s*\(\s*\)", "", line)                  # empty brackets left behind: ()
         line = re.sub(r"__(.*?)__", r"\1", line)
         line = re.sub(r"^#+\s*", "", line)
         line = re.sub(r"\\\[|\\\]", "", line)
@@ -435,6 +442,29 @@ def rewrite_question(question, history):
     return first_line
 
 
+# ---- Course abbreviations: a short question like "what is rag" can match the wrong note ("Ragas") ----
+ACRONYMS = {
+    "rag": "Retrieval Augmented Generation",
+    "lora": "Low-Rank Adaptation",
+    "qlora": "Quantized Low-Rank Adaptation",
+    "dpo": "Direct Preference Optimization",
+    "rlhf": "Reinforcement Learning from Human Feedback",
+    "peft": "Parameter-Efficient Fine-Tuning",
+    "sft": "Supervised Fine-Tuning",
+}
+
+
+def expand_acronyms(text):
+    """'what is rag' -> 'what is rag (Retrieval Augmented Generation)'. Used for the search only."""
+    def add_full_name(match):
+        word = match.group(0)
+        full = ACRONYMS[word.lower()]
+        if full.lower().replace("-", " ") in text.lower().replace("-", " "):
+            return word                             # the student already wrote it out
+        return f"{word} ({full})"
+    return re.sub(r"\b(" + "|".join(ACRONYMS) + r")\b", add_full_name, text, flags=re.I)
+
+
 def answer_question(question, history=None, stream=False):
     history = history or []
 
@@ -465,16 +495,17 @@ def answer_question(question, history=None, stream=False):
     # have no pronoun that we could detect.
     first = None
     if not history:
-        first = retrieve(question, top_k=SEARCH_K)
+        first = retrieve(expand_acronyms(question), top_k=SEARCH_K)
         if first[0]["distance"] >= FAST_PATH_DISTANCE:
             first = None  # weak match: maybe a typo, so let the rewriter try
 
     if first is not None:
-        standalone = question
+        standalone = expand_acronyms(question)
         rewrite_skipped = True
     else:
         standalone = rewrite_question(question, history)
         standalone = attach_previous_topic(question, standalone, history)
+        standalone = expand_acronyms(standalone)
         first = retrieve(standalone, top_k=SEARCH_K)
         rewrite_skipped = False
 

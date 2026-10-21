@@ -146,9 +146,9 @@ def generate_answer(question, history, box):
                 raw += piece
                 now = time.time()
                 if now - last_shown > 0.1:
-                    box.markdown(rag.clean_answer(raw))
+                    box.markdown(rag.clean_answer(raw, fences=True))
                     last_shown = now
-            final = rag.clean_answer(raw)
+            final = rag.clean_answer(raw, fences=True)
             box.markdown(final)                            # final, complete text. Only the answer, never the notes.
             if key:
                 save_to_cache(key, final)
