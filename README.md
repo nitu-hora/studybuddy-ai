@@ -138,6 +138,15 @@ flowchart LR
     APP --> GQ[Groq API<br/>gpt-oss-20b / 120b]
 ```
 
+### 14. Short questions and look-alike names
+A live test from a second account found real problems. "what is rag" matched a note about Ragas, a tool with a similar name. A short follow-up like "give me an example with code" lost its topic. And "what does HHH stand for" was refused because the search for three bare letters found weak matches. Fixes: a small glossary spells out abbreviations (RAG, LoRA, QLoRA, DPO, RLHF, PEFT, SFT, HHH) for the search only, plain code adds the last real topic to a short request, and a prompt rule says look-alike names are different things. I used code, not the prompt, wherever the failure was predictable, because a prompt is not guaranteed and code is.
+
+### 15. Wrong facts that come from the source
+Lecture 17 writes the LoRA matrix shapes two ways (one slide has B as r by d and A as d by r, which does not multiply to the right shape). The assistant copied the wrong one. I added a prompt rule and a small code fix that corrects the shapes in the answer, and I logged the case. The proper fix is to correct the slide in the notes and re-index.
+
+### 16. Waiting out the free-tier limit
+A full check run crashed with a per-minute limit error (8,000 tokens per minute, both models full). The model call now tries both models, then waits 10 seconds and 20 seconds and tries again, so a busy minute costs a short wait instead of an error.
+
 ---
 
 ## Evaluation
@@ -175,7 +184,12 @@ flowchart LR
 - **Free tier:** about 8,000 tokens per minute and about 70 questions a day per model, so a few students at a time, not a whole cohort. The fallback model and the cache help but do not remove the limit.
 - **Free hosting:** about 2.7 GB memory, sleeps after 12 hours idle, temporary disk (the cache resets on restart). Fine for 10 students.
 - **Look-alike names:** RAG and Ragas, or similar terms, can still be mixed up. A prompt rule and the acronym list reduce it but do not remove it.
-- **New lectures were tested on only 10 questions,** and 9 of 10 passed an automatic check. I have not hand-scored them yet.
+- **New lectures were tested on only 10 questions.** On 21 Oct 2026, after the fixes, 9 of 10 passed the automatic key-word check (`run_check.py low`). The one failure was the 7B memory question: the answer gave the right parts (14 GB weights, 14 GB gradients, 56 GB optimizer state) but not the lecture's exact activation figure (8 GB) or total (92 GB). It had passed in an earlier run, so answers on numbers can vary between runs even at temperature 0.
+- **Not hand-scored yet** for the new lectures, and the pilot below has just started.
+
+## Pilot
+
+The app is hosted free and shared privately, with a link and a password, with a small group of classmates. I ask each one for about 10 questions, one wrong answer, one helpful answer, and whether they would use it before an exam. Wrong answers go into my test questions and into this README's limitations. Results will be added here once I have them.
 
 ## Design: the notes stay private
 

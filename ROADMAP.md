@@ -29,10 +29,10 @@ On 20 questions, average time per answer fell from 5.6 s to 3.2 s and LLM calls 
 - [ ] Hand-score `manual_correct` in the results CSV and put the number in the README
 - [x] First clean push: no key, no database, no lecture files
 - [x] `streamlit_app.py`: chat page with a password, one question at a time, hosted free online
-- [ ] Retest on the hosted app: what is rag, give me an example with code, what is lora
-- [ ] Run `python run_check.py low` and read every answer
-- [ ] Check LoRA matrix shapes against Lecture 17
-- [ ] Test with 5 students, about 10 questions each
+- [x] Retest on the hosted app: what is rag, give me an example with code, what is lora
+- [x] Run `python run_check.py low` and read every answer (21 Oct 2026: 9 of 10 passed; the 7B memory answer dropped the exact 92 GB total on that run)
+- [x] Check LoRA matrix shapes against Lecture 17 (the lecture writes them two ways; a prompt rule and an output fix give the correct form. Optional: correct the slide and re-index)
+- [ ] Pilot with about 5 classmates, 10 questions each (link and password sent privately)
 - [x] Assignment guides: kept in, solutions included, because they are old assignments only. Never index a current assignment
 - [ ] Short feedback form; keep the wrong answers as new test questions
 
