@@ -464,6 +464,7 @@ ACRONYMS = {
     "rlhf": "Reinforcement Learning from Human Feedback",
     "peft": "Parameter-Efficient Fine-Tuning",
     "sft": "Supervised Fine-Tuning",
+    "hhh": "Helpful, Honest, Harmless framework",
 }
 
 
