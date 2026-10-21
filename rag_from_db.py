@@ -303,10 +303,22 @@ def retrieve_multi(question, first_results, per_query=8, final_k=8):
     return [found[cid] for cid in ranked[:final_k]]
 
 
+def fix_lora_shapes(text):
+    # Slide 12 of Lecture 17 writes B as r x d and A as d x r, which does not multiply to d x k.
+    # Slide 13 has the right form (B is d x r, A is r x k). Correct the wrong form in the answer.
+    dim = r"[\u00d7x]"
+    pat = re.compile(
+        r"(B\s*(?:\(|of shape\s*|is\s*|has shape\s*)\s*)r\s*" + dim + r"\s*d(\)?)"
+        r"(.{0,25}?A\s*(?:\(|of shape\s*|is\s*|has shape\s*)\s*)d\s*" + dim + r"\s*r"
+    )
+    return pat.sub(lambda m: m.group(1) + "d\u00d7r" + (m.group(2) or "") + m.group(3) + "r\u00d7k", text)
+
+
 def clean_answer(text, fences=False):
     # fences=True keeps code in ``` blocks (for the web page). False indents it (for the terminal).
     # The model sometimes uses special hyphens and spaces that look odd in a terminal.
     text = text.replace("\u2011", "-").replace("\u00a0", " ").replace("\u202f", " ")
+    text = fix_lora_shapes(text)
     out = []
     in_fence = False
     for line in text.split("\n"):
