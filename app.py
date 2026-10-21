@@ -24,7 +24,8 @@ load_dotenv()
 
 STUDY_USER = os.environ.get("STUDY_USER", "studybuddy")
 STUDY_PASSWORD = os.environ.get("STUDY_PASSWORD")
-SHARE = os.environ.get("STUDY_SHARE", "1") != "0"
+# On a Hugging Face Space (SPACE_ID is set) the Space already has its own public link, so no Gradio share link.
+SHARE = os.environ.get("STUDY_SHARE", "1") != "0" and not os.environ.get("SPACE_ID")
 if not STUDY_PASSWORD:
     raise RuntimeError("Add STUDY_PASSWORD=your-password to the .env file before starting the page.")
 

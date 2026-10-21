@@ -1,4 +1,4 @@
-﻿.env
+.env
 studybuddy_db/
 studybuddy_db_backup/
 data/
@@ -29,3 +29,6 @@ q1_check.py
 run_check.py
 count_tokens.py
 src/ingest/probe_docx.py
+.streamlit/secrets.toml
+space_deploy/
+make_space_folder.ps1

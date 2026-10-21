@@ -1,5 +1,8 @@
 import sys
-sys.stdout.reconfigure(encoding="utf-8")
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except Exception:
+    pass                                        # some servers use a stdout that cannot be reconfigured
 
 import os
 import re

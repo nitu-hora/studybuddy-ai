@@ -2,4 +2,5 @@ chromadb
 openai
 python-dotenv
 python-docx
-gradio
+streamlit
+huggingface_hub
