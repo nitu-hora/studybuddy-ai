@@ -26,8 +26,9 @@ On 20 questions, average time per answer fell from 5.6 s to 3.2 s and LLM calls 
 
 - [ ] Hand-score `manual_correct` in the results CSV and put the number in the README
 - [ ] First clean push: no key, no database, no lecture files
-- [ ] `app.py`: Gradio chat page with a password, one request at a time, shareable link from my laptop; start with 5 students and about 10 questions each
-- [ ] For the student version: exclude assignment files with a search filter if the guides hold full graded solutions
+- [x] `app.py`: Gradio chat page with a password, one request at a time, shareable link from my laptop
+- [ ] Test with 5 students, about 10 questions each
+- [x] Assignment guides: kept in, solutions included, because they are old assignments only. Never index a current assignment
 - [ ] Short feedback form and screenshot or recording for the LinkedIn post
 
 ## Future work (cut on purpose, with reasons)
@@ -51,7 +52,7 @@ On 20 questions, average time per answer fell from 5.6 s to 3.2 s and LLM calls 
 | The notes can contain errors | A model-size row disagrees with the paper | Fix the notes, then re-index |
 | Answers vary between runs | Two different networks for the same question | Accept, or lower the temperature |
 | Simplify answers not always much simpler | 4 of 5 at least 20% shorter | Tighter simplify prompt |
-| Assignment files leak details | "all 400 review tokens", "GELU" | Filter for the student version |
+| Assignment guides with full solutions are searchable | Assignment details appear in general answers | Intended: old assignments only. Hint-only mode if a current one is ever added |
 | Fixed 8 chunks | Noise on narrow questions | Relevance cutoff |
 
 ## Scope
@@ -68,7 +69,7 @@ The goal is a project I can explain end to end, with measured results, that a fe
 | Multi-query with RRF | Hybrid search, a re-ranker | Cheapest fix for the vocabulary gap |
 | Confidence gate before the answer call | Let the model refuse | Free for off-topic questions; fewer made-up answers |
 | Fast path and simplify route | Always rewrite and expand | Measured: 5.6 s to 3.2 s with the same quality screens |
-| Keep assignment files for now | Remove them | Useful for me; filter them for the student version |
+| Keep assignment guides, solutions included | Remove them, or filter for students | They are old assignments, and students want the answers |
 | Laptop-hosted Gradio page | Hosted bot | Free, quick, enough for 5 students |
 
 ## What I learned

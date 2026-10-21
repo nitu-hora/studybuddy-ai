@@ -24,7 +24,7 @@ A normal chatbot doesn't know our lectures, so its answers use different terms a
 | "Explain more simply" / "give an analogy" in one fast LLM call | Working |
 | "Explain the code line by line" using the previous answer | Working |
 | Refuse off-topic questions instead of making up an answer | Working (20 of 20 in my test) |
-| Chat page for a few students (Gradio, password, one at a time) | Next |
+| Chat page for a few students (Gradio, password, one at a time): `app.py` | Built, testing with students |
 | Quiz mode, Telegram bot, larger pilot | Future work |
 
 ---
@@ -144,7 +144,7 @@ After the first benchmark I found each question cost 3 LLM calls and search took
 - **Answers vary between runs.** The same question asked twice can give different examples.
 - **Simplify answers are shorter but not always dramatically simpler.**
 - **Small explanation errors remain,** for example describing a parameter's size slightly wrong. A reader should still check the notes for anything important.
-- **Assignment files leak details** into general answers. Version for students: excluded with a search filter on the lecture name.
+- **Assignment guides are in the knowledge base, including their full solutions.** I only index assignments from past terms, so students can see answers to old assignments on purpose. A current assignment should never be indexed.
 - **Fixed 8 chunks** add noise when only a few are relevant.
 - **Small test:** 20 questions, one laptop, one run each. It is a pilot-scale result, not a production claim.
 - **Free tier:** about 8,000 tokens per minute on this model, so a few students at a time, not a whole cohort.
@@ -165,7 +165,7 @@ Python, ChromaDB, sentence-transformers `all-MiniLM-L6-v2` (Chroma's default emb
 
 ## Use it
 
-**If you are in my cohort:** you don't install anything. All the cohort's lecture notes and assignment guides are already loaded on my side. I share a link to a chat page (coming next, see [ROADMAP.md](ROADMAP.md)), you open it, enter the password and ask. The notes stay with me and are not in this repo.
+**If you are in my cohort:** you don't install anything. All the cohort's lecture notes and assignment guides are already loaded on my side. I run `app.py` on my laptop and share a link. You open it, enter the password and ask. The link works only while my laptop is on. The notes stay with me and are not in this repo.
 
 **If you are outside my cohort (or want to build on this code):** you can run your own copy over your own notes. The course notes and the built database are private and not in this repo, so you bring your own .docx notes.
 
@@ -173,6 +173,7 @@ Python, ChromaDB, sentence-transformers `all-MiniLM-L6-v2` (Chroma's default emb
 2. Get a free key at [console.groq.com](https://console.groq.com). Copy `.env.example` to `.env` and paste the key after `GROQ_API_KEY=`.
 3. Put your own lecture .docx files in the `lectures/` folder.
 4. Build the knowledge base once: `python -m src.ingest.build_index`
-5. Start the chat: `python rag_from_db.py`
+5. Start the chat in the terminal: `python rag_from_db.py`
+6. Or start the web page: add `STUDY_PASSWORD=choose-a-password` to `.env`, then run `python app.py`. It prints a link to share.
 
 Run the benchmark with `python eval_twenty.py baseline`, or compare two runs with `python eval_twenty.py compare baseline fastpath`. The question list inside the script uses my course's topics; replace it with questions about your own notes.

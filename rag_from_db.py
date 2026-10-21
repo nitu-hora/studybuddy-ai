@@ -7,7 +7,7 @@ import time
 
 import chromadb
 from dotenv import load_dotenv
-from openai import OpenAI
+from openai import OpenAI, RateLimitError, InternalServerError, APIConnectionError
 
 from src.config import DB_PATH, COLLECTION_NAME
 
@@ -18,11 +18,35 @@ load_dotenv()
 api_key = os.environ.get("GROQ_API_KEY")
 if not api_key:
     raise RuntimeError("GROQ_API_KEY not found. Add it to the .env file in the project root.")
-llm_client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=api_key, max_retries=6)
+llm_client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=api_key, max_retries=0)
 
 MODEL = "openai/gpt-oss-20b"
+
+# Each model has its own free limit (tokens per minute and per day). If the first model says
+# "too many requests", the next one answers instead of the student waiting.
+MODELS = ["openai/gpt-oss-20b", "openai/gpt-oss-120b"]
+
+
+def chat_create(**kwargs):
+    """Like llm_client.chat.completions.create, but tries the next model when one is rate limited."""
+    last_error = None
+    for attempt in range(2):
+        for model in MODELS:
+            try:
+                return llm_client.chat.completions.create(model=model, **kwargs)
+            except (RateLimitError, InternalServerError, APIConnectionError) as e:
+                last_error = e
+                print(f"[limit] {model} failed ({type(e).__name__}), trying the next model")
+        if attempt == 0:
+            time.sleep(8)   # every model is busy: wait a moment, then try the whole list once more
+    raise last_error
 TOP_K = 5
-CONFIDENCE_THRESHOLD = 1.0
+CONFIDENCE_THRESHOLD = 1.10
+
+# How long the model may 'think' before it writes. 'low' is faster; 'medium' is the default.
+# Rewriting and query-writing are easy jobs, so they always use 'low'.
+REASONING_EFFORT_SIDE = "low"
+REASONING_EFFORT_ANSWER = "low"
 
 NOT_COVERED_MESSAGE = (
     "This doesn't look like it's covered in your lectures yet.\n"
@@ -132,6 +156,10 @@ The numbered notes below come from the student's own course. Write ONE clear, co
 - When the student asks for code and a note below already contains code for that topic, copy that code (shortened if needed) and do not write your own version. Write new code only when no note has any, and keep it short and correct: check the shapes of every tensor and every argument you pass.
 - If the student asks for small, simple or minimal code, shorten the code from the notes to the essential lines.
 - When you describe code or a model, describe only what is actually in it. Do not claim that it contains parts that are not there.
+- Give the direct answer in the first sentence, then the explanation.
+- Check first: do the notes below really contain what the student asked? If the question names a specific model, number, person, dataset or fact (for example 'what rank did OpenAI use for GPT-4') and that exact thing does not appear in the notes, do not answer from general knowledge and do not borrow a number that belongs to something else. Reply with only these two lines, word for word:
+{NOT_COVERED_MESSAGE}
+- If the notes spell out what an abbreviation stands for, copy that spelling exactly. Never expand an abbreviation from your own memory.
 - Make the answer complete, so the student does not need to look anywhere else. Do not mention lectures, lecture numbers, note numbers, assignments or where to read more, and do not say "the notes" or "the course". Just state the facts.
 
 {FORMAT_RULE}
@@ -146,17 +174,44 @@ def generate_answer(system_prompt, question, max_tokens=1500):
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": question},
     ]
-    response = llm_client.chat.completions.create(
-        model=MODEL,
+    response = chat_create(
         messages=messages,
-        temperature=0.2,
+        temperature=0,
         max_tokens=max_tokens,
+        extra_body={"reasoning_effort": REASONING_EFFORT_ANSWER},
     )
     choice = response.choices[0]
     text = choice.message.content or ""
     if choice.finish_reason == "length":
         text += "\n\n(This answer was cut off because it got too long. Try asking about one part at a time.)"
     return text
+
+
+def stream_answer(system_prompt, question, max_tokens=1500):
+    """Like generate_answer, but yields the raw text piece by piece while the model writes it."""
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": question},
+    ]
+    stream = chat_create(
+        messages=messages,
+        temperature=0,
+        max_tokens=max_tokens,
+        extra_body={"reasoning_effort": REASONING_EFFORT_ANSWER},
+        stream=True,
+    )
+    finish = None
+    for chunk in stream:
+        if not chunk.choices:
+            continue
+        choice = chunk.choices[0]
+        piece = choice.delta.content
+        if piece:
+            yield piece
+        if choice.finish_reason:
+            finish = choice.finish_reason
+    if finish == "length":
+        yield "\n\n(This answer was cut off because it got too long. Try asking about one part at a time.)"
 
 
 def is_simplify_request(question, history):
@@ -203,11 +258,11 @@ def expand_query(question, n=3):
         "Now do the same. Output one query per line, with no numbering and no extra text.\n"
         f"Question: {question}"
     )
-    response = llm_client.chat.completions.create(
-        model=MODEL,
+    response = chat_create(
         messages=[{"role": "user", "content": prompt}],
         temperature=0.2,
         max_tokens=2000,
+        extra_body={"reasoning_effort": REASONING_EFFORT_SIDE},
     )
     text = response.choices[0].message.content or ""
     queries = []
@@ -312,17 +367,18 @@ def rewrite_question(question, history):
         "- If it is already clear and correct, return it unchanged.\n"
         "- Use the conversation only when the message cannot be understood without it. "
         "If the message starts a new topic, keep it as it is and do not add earlier topics to it.\n"
+        "- A short request that has no topic of its own, such as 'give me a code example', 'show an example', 'why' or 'how is it calculated', is about the topic of the last turn. Add that topic to it.\n"
         "- Keep the question short, under 25 words.\n"
         "- Do not answer it. Output only the question, on one line.\n\n"
         f"Conversation so far:\n{convo}\n\n"
         f"Latest message: {question}"
     )
     try:
-        response = llm_client.chat.completions.create(
-            model=MODEL,
+        response = chat_create(
             messages=[{"role": "user", "content": prompt}],
             temperature=0,
             max_tokens=1000,
+            extra_body={"reasoning_effort": REASONING_EFFORT_SIDE},
         )
         text = (response.choices[0].message.content or "").strip()
     except Exception:
@@ -334,14 +390,17 @@ def rewrite_question(question, history):
     return first_line
 
 
-def answer_question(question, history=None):
+def answer_question(question, history=None, stream=False):
     history = history or []
 
     # Route 1: "explain that more simply". Rewrite the previous answer. No search, no rewrite.
     if is_simplify_request(question, history):
         previous_question, previous_answer = history[-1]
         prompt = build_simplify_prompt(previous_question, previous_answer[:4000])
-        raw_answer = generate_answer(prompt, question, 1500)
+        if stream:
+            answer_text, answer_stream = "", stream_answer(prompt, question, 1500)
+        else:
+            answer_text, answer_stream = clean_answer(generate_answer(prompt, question, 1500)), None
         return {
             "question": question,
             "standalone_question": previous_question,
@@ -350,7 +409,8 @@ def answer_question(question, history=None):
             "confidence": "confident",
             "route": "simplify",
             "rewrite_skipped": True,
-            "answer": clean_answer(raw_answer),
+            "answer": answer_text,
+            "answer_stream": answer_stream,
         }
 
     # Route 2: a normal question.
@@ -374,6 +434,16 @@ def answer_question(question, history=None):
 
     best_distance = first[0]["distance"]
     confidence = classify_confidence(best_distance)
+
+    # Safety net for short follow-ups ("give me code example"): if the search came back weak,
+    # try once more with the previous topic put in front of the follow-up.
+    if confidence == "weak" and history and len(question.split()) <= 8:
+        combined = f"{history[-1][0]} {question}"
+        retry = retrieve(combined, top_k=SEARCH_K)
+        if classify_confidence(retry[0]["distance"]) == "confident":
+            standalone, first = combined, retry
+            best_distance = first[0]["distance"]
+            confidence = "confident"
 
     result = {
         "question": question,
@@ -413,8 +483,12 @@ def answer_question(question, history=None):
     # Code answers and follow-ups are longer, so they get a bigger token limit.
     wants_code = bool(CODE_WORDS.search(standalone))
     limit = 3000 if (wants_code or previous) else 1500
-    raw_answer = generate_answer(prompt, standalone, limit)
-    result["answer"] = clean_answer(raw_answer)
+    if stream:
+        result["answer"] = ""
+        result["answer_stream"] = stream_answer(prompt, standalone, limit)
+    else:
+        raw_answer = generate_answer(prompt, standalone, limit)
+        result["answer"] = clean_answer(raw_answer)
     result["sources"] = format_sources(chunks)
     return result
 

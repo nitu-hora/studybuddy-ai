@@ -144,7 +144,7 @@ Run on version 3.1: `eval_five.py` plus the 3-turn code test (self-attention, th
 - **Answers vary between runs:** the same question asked twice (once with "?" and once without) gave two different small neural networks. Sampling is random, and different chunks can be retrieved for slightly different wording.
 - **Simplify answers are not dramatically simpler:** 4 of 5 are shorter by 20% or more, but a reader may still find them close to the original.
 - **Small explanation errors remain:** for example `embed_dim` described as the size of each head. The prompt cannot stop this. A manual check can find it.
-- **Assignment files leak details** into general answers ("all 400 review tokens", "GELU"). Decision: keep them in the knowledge base for my own use; for the version shared with students, exclude them with a search filter on the lecture name.
+- **Assignment files leak details** into general answers ("all 400 review tokens", "GELU"). Decision: keep them in the knowledge base, solutions included. They are old assignments only, and students are meant to see the answers. A current assignment must never be indexed.
 
 ## Moved to future work
 
